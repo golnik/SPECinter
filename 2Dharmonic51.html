@@ -1,0 +1,385 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>2D Quantum Harmonic Oscillator</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/mathjs/11.8.0/math.min.js"></script>
+  <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 20px;
+      box-sizing: border-box;
+    }
+
+    h2 {
+      margin-bottom: 20px;
+    }
+
+    .top-row {
+      display: flex;
+      max-width: none;
+      width: calc(100vw - 40px);
+      margin-bottom: 20px;
+      gap: 20px;
+      align-items: stretch;
+    }
+
+    .controls {
+      flex: 0 0 320px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      font-size: 12px;
+    }
+
+    .slider-group {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      width: 100%;
+    }
+
+    .slider-group label {
+      width: 120px;
+      white-space: nowrap;
+      font-size: 12px;
+    }
+
+    .slider-group input[type="range"] {
+      width: 180px;
+    }
+
+    .slider-group input[type="number"] {
+      width: 50px;
+      font-size: 12px;
+      padding: 2px 4px;
+    }
+
+    #energies {
+      flex: 1 1 auto;
+      margin-right: 10px;
+      min-width: 100px;
+    }
+
+    .plots-container {
+      display: flex;
+      justify-content: space-between;
+      max-width: none;
+      width: 100vw;
+      gap: 10px;
+      padding: 10px;
+      margin: 0;
+    }
+
+    .plot {
+      width: 50%;
+      height: 600px;
+      margin: 10px;
+    }
+  </style>
+</head>
+<body>
+  <h2>2D Quantum Harmonic Oscillator</h2>
+
+  <div class="top-row">
+    <div class="controls">
+      <div class="slider-group">
+        <label for="omegaX1">ωₓ (First Potential):</label>
+        <input type="range" id="omegaX1" min="0.3" max="10" step="0.01" value="1.0" />
+        <input type="number" id="omegaX1Num" min="0.3" max="10" step="0.01" value="1.0" />
+      </div>
+      <div class="slider-group">
+        <label for="omegaY1">ωᵧ (First Potential):</label>
+        <input type="range" id="omegaY1" min="0.3" max="10" step="0.01" value="1.0" />
+        <input type="number" id="omegaY1Num" min="0.3" max="10" step="0.01" value="1.0" />
+      </div>
+      <div class="slider-group">
+        <label for="omegaX2">ωₓ (Second Potential):</label>
+        <input type="range" id="omegaX2" min="0.3" max="10" step="0.01" value="1.0" />
+        <input type="number" id="omegaX2Num" min="0.3" max="10" step="0.01" value="1.0" />
+      </div>
+      <div class="slider-group">
+        <label for="omegaY2">ωᵧ (Second Potential):</label>
+        <input type="range" id="omegaY2" min="0.3" max="10" step="0.01" value="1.0" />
+        <input type="number" id="omegaY2Num" min="0.3" max="10" step="0.01" value="1.0" />
+      </div>
+      <div class="slider-group">
+        <label for="nx2">nₓ (Second Potential):</label>
+        <input type="range" id="nx2" min="0" max="10" step="1" value="0" />
+        <input type="number" id="nx2Num" min="0" max="10" step="1" value="0" />
+      </div>
+      <div class="slider-group">
+        <label for="ny2">nᵧ (Second Potential):</label>
+        <input type="range" id="ny2" min="0" max="10" step="1" value="0" />
+        <input type="number" id="ny2Num" min="0" max="10" step="1" value="0" />
+      </div>
+      <div class="slider-group">
+        <label for="shiftX">Shift X:</label>
+        <input type="range" id="shiftX" min="-6" max="6" step="0.1" value="0" />
+        <input type="number" id="shiftXNum" min="-6" max="6" step="0.1" value="0" />
+      </div>
+      <div class="slider-group">
+        <label for="shiftY">Shift Y:</label>
+        <input type="range" id="shiftY" min="-6" max="6" step="0.1" value="0" />
+        <input type="number" id="shiftYNum" min="-6" max="6" step="0.1" value="0" />
+      </div>
+      <div class="slider-group">
+        <label for="theta">Rotation θ (in-plane):</label>
+        <input type="range" id="theta" min="0" max="360" step="1" value="0" />
+        <input type="number" id="thetaNum" min="0" max="360" step="1" value="0" />
+      </div>
+    </div>
+
+    <div id="energies"></div>
+  </div>
+
+  <div class="plots-container">
+    <div id="plot1" class="plot"></div>
+    <div id="plot2" class="plot"></div>
+  </div>
+
+  <script>
+    const mass = 1, hbar = 1, pconstant = 1;
+
+    const factorial = n => math.factorial(n);
+
+    const hermite = (n, x) => {
+      if (n === 0) return 1;
+      if (n === 1) return 2 * x;
+      return 2 * x * hermite(n - 1, x) - 2 * (n - 1) * hermite(n - 2, x);
+    };
+
+    const psi_2d = (x, y, nx, ny, ax, ay) => {
+      const hx = hermite(nx, Math.sqrt(ax) * x);
+      const hy = hermite(ny, Math.sqrt(ay) * y);
+      const normx = Math.pow(ax / Math.PI, 0.25) / Math.sqrt(Math.pow(2, nx) * factorial(nx));
+      const normy = Math.pow(ay / Math.PI, 0.25) / Math.sqrt(Math.pow(2, ny) * factorial(ny));
+      return normx * normy * hx * hy * Math.exp(-ax * x * x / 2 - ay * y * y / 2);
+    };
+
+    const grid = 100;
+    const range = 8;
+    const x1d = math.range(-range, range, 2 * range / grid, true)._data;
+    const y1d = x1d.slice();
+    const dx = x1d[1] - x1d[0];
+    const dy = dx;
+
+    const X = y1d.map(() => x1d);
+    const Y = y1d.map((y, i) => x1d.map(() => y));
+
+    function normalize(arr) {
+      const sum = arr.flat().reduce((a, v) => a + Math.abs(v) ** 2 * dx * dy, 0);
+      const norm = Math.sqrt(sum);
+      return arr.map(row => row.map(v => v / norm));
+    }
+
+    function rotate(x, y, thetaDeg) {
+      const theta = thetaDeg * Math.PI / 180;
+      let x1 = x * Math.cos(theta) + y * Math.sin(theta);
+      let y1 = -x * Math.sin(theta) + y * Math.cos(theta);
+      return [x1, y1];
+    }
+
+    function calcPotentialAndPsi(omegaX, omegaY, nx, ny, xShift = 0, yShift = 0, theta = 0) {
+      const alphaX = mass * omegaX / pconstant;
+      const alphaY = mass * omegaY / pconstant;
+      const V = [], psi = [];
+      for (let i = 0; i < grid; i++) {
+        const rowV = [], rowPsi = [];
+        for (let j = 0; j < grid; j++) {
+          let xi = X[i][j] - xShift;
+          let yi = Y[i][j] - yShift;
+          [xi, yi] = rotate(xi, yi, theta);
+          rowV.push(0.5 * mass * (omegaX ** 2 * xi ** 2 + omegaY ** 2 * yi ** 2));
+          rowPsi.push(psi_2d(xi, yi, nx, ny, alphaX, alphaY));
+        }
+        V.push(rowV);
+        psi.push(rowPsi);
+      }
+      return { V, psi: normalize(psi), alphaX, alphaY };
+    }
+
+    function clip(mat, E) {
+      const mh = 4 * (E + 1);
+      return mat.map(row => row.map(v => Math.min(v, mh)));
+    }
+
+    function surfacePlot(Z1, Z2, title, div) {
+      Plotly.newPlot(div, [
+        {
+          z: Z1, x: x1d, y: y1d,
+          type: 'surface',
+          showscale: false,
+          opacity: 0.5,
+          colorscale: 'Blues'
+        },
+        {
+          z: Z2, x: x1d, y: y1d,
+          type: 'surface',
+          showscale: false,
+          opacity: 0.7,
+          colorscale: 'Reds'
+        }
+      ], {
+        title,
+        scene: {
+          xaxis: { title: 'x' },
+          yaxis: { title: 'y' },
+          zaxis: { title: 'Amplitude / Potential' }
+        }
+      });
+    }
+
+    function computeSpectrum(npsi1, alpha2_x, alpha2_y, shiftX, shiftY, theta) {
+      const maxLevel = 10;
+      const energies = [];
+      const values = [];
+      const omegaX2 = parseFloat(document.getElementById('omegaX2').value);
+      const omegaY2 = parseFloat(document.getElementById('omegaY2').value);
+      for (let nx = 0; nx <= maxLevel; nx++) {
+        for (let ny = 0; ny <= maxLevel; ny++) {   
+          const psi2 = [];
+          for (let i = 0; i < grid; i++) {
+            const row = [];
+            for (let j = 0; j < grid; j++) {
+              let xi = X[i][j] - shiftX;
+              let yi = Y[i][j] - shiftY;
+              [xi, yi] = rotate(xi, yi, theta);
+              row.push(psi_2d(xi, yi, nx, ny, alpha2_x, alpha2_y));
+            }
+            psi2.push(row);
+          }
+          const npsi2 = normalize(psi2);
+          let sum = 0;
+          for (let i = 0; i < grid; i++) {
+            for (let j = 0; j < grid; j++) {
+              sum += npsi1[i][j] * npsi2[i][j] * dx * dy;
+            }
+          }
+          const energy = hbar * (omegaX2 * (nx + 0.5) + omegaY2 * (ny + 0.5));
+          energies.push(energy);
+          values.push(sum * sum);
+        }
+      }
+      //added
+      const spectrum = energies.map((E, i) => ({ E, val: values[i] }))
+                         .sort((a, b) => a.E - b.E);
+      const sortedE = spectrum.map(pt => pt.E);
+      const sortedVals = spectrum.map(pt => pt.val);
+      Plotly.newPlot('energies', [
+        {
+          x: sortedE,
+          y: sortedVals,
+          type: 'scatter',
+          mode: 'lines',
+          line: { color: 'purple', width: 1 },
+          showlegend: false
+        },
+        {
+          x: sortedE,
+          y: sortedVals,
+          type: 'scatter',
+          mode: 'markers',
+          marker: { color: 'green', size: 3 },
+          showlegend: false
+        }
+      ], {
+        title: 'Franck-Condon (FCF) Spectrum',
+        xaxis: { title: 'energy', rangemode: 'tozero' },
+        yaxis: { title: 'FCF', rangemode: 'tozero' },
+        margin: { t: 40, b: 80, l: 60, r: 40 },
+        showlegend: false
+      });
+    }
+
+    function update() {
+      const params = [
+        'omegaX1', 'omegaY1', 'omegaX2', 'omegaY2',
+        'nx2', 'ny2', 'shiftX', 'shiftY', 'theta'
+      ];
+
+      params.forEach(id => {
+        const slider = document.getElementById(id);
+        const number = document.getElementById(id + 'Num');
+        if (document.activeElement === slider) {
+          number.value = slider.value;
+        } else if (document.activeElement === number) {
+          slider.value = number.value;
+        } else {
+          number.value = slider.value;
+        }
+      });
+
+      const omegaX1 = parseFloat(document.getElementById('omegaX1').value);
+      const omegaY1 = parseFloat(document.getElementById('omegaY1').value);
+      const omegaX2 = parseFloat(document.getElementById('omegaX2').value);
+      const omegaY2 = parseFloat(document.getElementById('omegaY2').value);
+      const nx2 = parseInt(document.getElementById('nx2').value);
+      const ny2 = parseInt(document.getElementById('ny2').value);
+      const shiftX = parseFloat(document.getElementById('shiftX').value);
+      const shiftY = parseFloat(document.getElementById('shiftY').value);
+      const theta = parseFloat(document.getElementById('theta').value);
+
+      const { V: V1, psi: psi1 } = calcPotentialAndPsi(omegaX1, omegaY1, 0, 0, 0, 0, 0);
+      const { V: V2, psi: psi2, alphaX: alpha2_x, alphaY: alpha2_y } = calcPotentialAndPsi(omegaX2, omegaY2, nx2, ny2, shiftX, shiftY, theta);
+
+      const E1 = hbar * (omegaX1 * 0.5 + omegaY1 * 0.5);
+      const E2 = hbar * (omegaX2 * (nx2 + 0.5) + omegaY2 * (ny2 + 0.5));
+      const ampScale = 10;
+
+      surfacePlot(
+        clip(V1, E1),
+        clip(psi1.map(r => r.map(v => E1 + v * ampScale)), E1),
+        'First Potential and Wavefunction (Ground State)',
+        'plot1'
+      );
+
+      surfacePlot(
+        clip(V2, E2),
+        clip(psi2.map(r => r.map(v => E2 + v * ampScale)), E2),
+        'Second Potential and Wavefunction',
+        'plot2'
+      );
+
+      computeSpectrum(psi1, alpha2_x, alpha2_y, shiftX, shiftY, theta);
+    }
+
+    ['omegaX1', 'omegaY1', 'omegaX2', 'omegaY2', 'nx2', 'ny2', 'shiftX', 'shiftY', 'theta'].forEach(id => {
+      const slider = document.getElementById(id);
+      const number = document.getElementById(id + 'Num');
+
+      slider.addEventListener('input', update);
+
+      number.addEventListener('input', () => {
+        const min = parseFloat(number.min);
+        const max = parseFloat(number.max);
+        let val = parseFloat(number.value);
+        if (isNaN(val)) val = min;
+        val = Math.min(Math.max(val, min), max);
+        number.value = val;
+        slider.value = val;
+        update();
+      });
+    });
+
+    function resizeEnergies() {
+      const controls = document.querySelector('.controls');
+      const energies = document.getElementById('energies');
+
+      if (controls && energies) {
+        energies.style.height = controls.offsetHeight + 'px';
+        const availableWidth = window.innerWidth - 40 - controls.offsetWidth - 20 - 10;
+        energies.style.maxWidth = availableWidth + 'px';
+      }
+    }
+
+    window.addEventListener('resize', resizeEnergies);
+    window.addEventListener('DOMContentLoaded', () => {
+      resizeEnergies();
+      update();
+    });
+  </script>
+</body>
+</html>
+
